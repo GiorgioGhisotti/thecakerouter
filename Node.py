@@ -1,37 +1,16 @@
 #!/usr/bin/env python
 from Cake import *
+import sys
 
-my_key = RSA.generate(2048)
+my_key = RSA.generate(RSA_MOD)
 public_key = my_key.publickey().exportKey('PEM')
 
-PORT = 4001
+PORT = int(sys.argv[1])
 HOST = "localhost"
-def writePubKey():
-	filename = "%spubkey.der" % PORT
-	f = open(filename,'w')
-	f.write(public_key)
-	return
-
-def keyExchange(sock):	#exchange keys with client
-	key = RSA.importKey(sock.receive(BUFSIZ))
-	sock.send(public_key)
-	return key
-
-def forwardMessage(msg, sock):	#forward message to server
-	sock.send(msg)
-	ans = sock.receive(BUFSIZ)
-	return ans
-
-def serverSocket(host, port):
-	ADDR = (host, port)
-	tcpSerSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	tcpSerSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-	tcpSerSock.connect(ADDR)
-	return tcpSerSock
 
 def registerWithNodeServer(host, port):
-	tcpSerSock = Client((host, port))
-	tcpSerSock.send(["localhost:4001", public_key])
+	tcpSerSock = serverSocket(host, port)
+	tcpSerSock.send(["localhost:" + str(PORT), public_key])
 	tcpSerSock.close()
 	return
 
@@ -40,37 +19,32 @@ def main():
 
 	ADDR = (HOST, PORT)
 
-	tcpProSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	tcpProSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-	tcpProSock.bind(ADDR)
-	tcpProSock.listen(5)
+	tcpProSock = Listener(ADDR) 
 
 	while True:
 		print("node %s waiting for a connection....." % PORT)
-		tcpCliSock, addr = tcpProSock.accept()
-		print("...connected from:", addr)
+		tcpCliSock = tcpProSock.accept()
+		print("node %s established connection!" %PORT)
 
-		cake = decryptCake(tcpCliSock.recv(BUFSIZ), my_key)
+		cake = decryptCake(tcpCliSock.recv(), my_key)
 		kf = cake[0]	#forward key
 		kb = cake[1]	#backwards key
-		next = cake[2]	#next node or server
-		fw_cake = cake[3]	#cake to forward
-		tcpSerSock = serverSocket(next.split(":"))	#generate socket with next node or server's address
+		nxt = cake[2].decode("utf-8")	#next node or server
+		tcpSerSock = serverSocket(nxt.split(":")[0],int(nxt.split(":")[1]))	#generate socket with next node or server's address
 
-		if(fw_cake != 0):	#exit node
-			tcpSerSock.send(fw_cake)
 		while True:
-                        data = tcpCliSock.recv(BUFSIZ)	#receive encrypted message
-                        if not data:break
-                        cipher = AES.new(kf, AES.MODE_CFB, data[0])
-                        msg = cipher.decrypt(data[1])   #decrypt message with AES forward key
-                        tcpSerSock.send(msg)
-                        ans = tcpSerSock.recv(BUFSIZ)   #receive answer
-                        iv = Random.new().read(AES.block_size)
-                        cipher = AES.new(kb, AES.MODE_ECB, iv)
-                        tcpCliSock.send((iv, cipher.encrypt(ans)))  #encrypt and send answer with AES backwards key
-		tcpCliSock.close
-		tcpSerSock.close
+			data = tcpCliSock.recv()	#receive encrypted message
+			if not data:break
+			data = data.split(b"???")
+			cipher = AES.new(kf, AES.MODE_CFB, data[0])
+			msg = cipher.decrypt(data[1])   #decrypt message with AES forward key
+			tcpSerSock.send(msg)
+			ans = tcpSerSock.recv()   #receive answer
+			iv = Random.new().read(AES.block_size)
+			cipher = AES.new(kb, AES.MODE_ECB, iv)
+			tcpCliSock.send([iv, cipher.encrypt(ans)])  #encrypt and send answer with AES backwards key
+		tcpCliSock.close()
+		tcpSerSock.close()
 	tcpProSock.close()
 	return
 

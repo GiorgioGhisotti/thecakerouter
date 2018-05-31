@@ -5,26 +5,27 @@ from multiprocessing.connection import Listener
 from multiprocessing.connection import Client
 from Cryptodome import Random
 from Cryptodome.Cipher import AES
-from Cryptodome.Cipher import PKCS1_v1_5
+from Cryptodome.Cipher import PKCS1_OAEP
 from Cryptodome.PublicKey import RSA
-import socket
 from time import ctime
 import string
 import random
 import os
 from functools import partial
+import hashlib
 
 NODEFILE = "nodes.txt"
 BUFSIZ = 4096
+RSA_MOD = 2048 
 
 def Cake():
 	print("The cake is a lie!")
 	return
 
 def randomNodes(n):
-	tcpSerSock = serverSocket(host, 1200)
-	tcpSerSock.send(0)
-	nodes = tcpSerSock.recv(BUFSIZ)
+	tcpSerSock = serverSocket("localhost", 1200)
+	tcpSerSock.send([0])
+	nodes = tcpSerSock.recv()
 	tcpSerSock.close()
 	random.SystemRandom().shuffle(nodes)
 	if(len(nodes) < n): return nodes
@@ -39,36 +40,49 @@ def nodeKeys(node_list):
 	return pub_keys
 
 def symKeys(n):	#generate a random set of forward and backwards keys
-	if n <= 1:
-		return (os.urandom(16), os.urandom(16))
-	return ((os.urandom(16), os.urandom(16)), symKeys(n-1))
+	k = [[hashlib.sha256(os.urandom(16)).digest(),hashlib.sha256(os.urandom(16)).digest()]] * n
+	for key in k:
+	    key = [hashlib.sha256(os.urandom(16)).digest(),hashlib.sha256(os.urandom(16)).digest()]
+	return k
 
 def encryptCake(cake, pub_key):
 	key = RSA.importKey(pub_key)
-	cipher = PKCS1_v1_5.new(key)
-	return cipher.encrypt(cake)
+	cipher = PKCS1_OAEP.new(key)
+	print("CAKE BEFORE: %s" %cake)
+	for i in range(len(cake)):
+		cake[i] = cipher.encrypt(cake[i])
+	print("CAKE AFTER: %s" %cake)
+	return cake 
 
 def decryptCake(cake, key):
-	cipher = PKCS1_v1_5.new(key)
-	return cipher.decrypt(cake)
+	cake=list(cake.split(b"???"))
+	cipher = PKCS1_OAEP.new(key)
+	for i in range(len(cake)):
+	    cake[i] = cipher.decrypt(cake[i])
+	print("CAKE: %s" %cake)
+	return cake
 
-def wrapCake(o, pub_keys, sym_keys, nodes, node_list, addr):
-	kf = sym_keys[nodes][0]
-	kb = sym_keys[nodes][1]
-	if nodes == 0:
-		return cake
-	elif nodes > len(keys):
-		cake = (kf, kb, addr, 0)
-	else:
-		cake = (kf, kb, node_list[node], o)
-	return wrapCake(encryptCake(cake, pub_keys[nodes-1]), pub_keys, sym_keys, nodes-1, node_list, port)
+def bakeCakes(pub_keys, sym_keys, nodes, node_list, addr):
+	cakes = []
+	for i in range(nodes):
+		if i==nodes-1:
+			cakes.append(encryptCake([sym_keys[i][0], 
+			sym_keys[i][1], 
+			addr.encode("utf-8")], 
+			pub_keys[i]))
+		else:
+			cakes.append(encryptCake([sym_keys[i][0], 
+			sym_keys[i][1], 
+			node_list[i+1].encode("utf-8")], 
+			pub_keys[i]))
+	return cakes
 
 def symEncrypt(msg, sym_keys, n):	#encrypt message with forward keys
 	if(n == 0):
 		return msg
 	iv = Random.new().read(AES.block_size)
 	cipher = AES.new(sym_keys[n-1][0], AES.MODE_CFB, iv)
-	msg = (iv, cipher.encrypt(msg))
+	msg = (iv, cipher.encrypt(msg.encode("utf-8")))
 	return symEncrypt(msg, sym_keys, n-1)
 
 def symDecrypt(msg, sym_keys, n, i):	#decrypt message with backward keys
@@ -84,3 +98,7 @@ def sendMessage(sock, cake, sym_keys):
 	ans = sock.recv(BUFSIZ)
 
 	return ans
+
+def serverSocket(host, port):
+	tcpSerSock = Client((host, port))
+	return tcpSerSock
