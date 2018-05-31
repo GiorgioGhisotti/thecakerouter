@@ -10,26 +10,28 @@ def main():
 	public_key = my_key.publickey().exportKey('PEM')
 
 	HOST = 'localhost'
-	BUFSIZ = 2048
+	BUFSIZ = 4096
 	ADDR = (HOST, PORT)
+	NODE = (node_list[0][0].split(":")[0], node_list[0][0].split(":")[1])
 
 	tcp_cli_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 	tcp_cli_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-	tcp_cli_sock.connect(ADDR)
+	tcp_cli_sock.connect(NODE)
 
-	tcp_cli_sock.send(public_key)	#send public key to server
-	server_key = RSA.importKey(tcp_cli_sock.recv(BUFSIZ))	#receive server's public key
+	cake = wrapCake(0, map(lambda a:a[1], node_list), sym_keys, map(lambda a:a[0], node_list), ADDR)
+
+	tcp_cli_sock.send(cake)	#send cake to first node
+
 	while True:
 		data = input("> ")
-		cipher = PKCS1_v1_5.new(server_key)
-		data = cipher.encrypt(data.encode())
 		if not data:break
-		tcp_cli_sock.send(data)
-		cipher = PKCS1_v1_5.new(my_key)
-		data = cipher.decrypt(tcp_cli_sock.recv(BUFSIZ), "b")
+		msg = symEncrypt(data, sym_keys)
+		tcp_cli_sock.send(msg)
+		data = symDecrypt(tcp_cli_sock.recv(BUFSIZ), sym_keys)
 		if not data:break
 		print(data.decode('utf-8'))
 	tcp_cli_sock.close()
 	return
+
 if __name__ == "__main__":
 	main()

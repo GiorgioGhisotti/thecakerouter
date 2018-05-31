@@ -6,11 +6,6 @@ public_key = my_key.publickey().exportKey('PEM')
 
 PORT = 4001
 HOST = "localhost"
-
-def registerWithNodeServer(host, port):
-	tcpSerSock = serverSocket(host, port)
-	return
-
 def writePubKey():
 	filename = "%spubkey.der" % PORT
 	f = open(filename,'w')
@@ -35,16 +30,14 @@ def serverSocket(host, port):
 	return tcpSerSock
 
 def registerWithNodeServer(host, port):
-	tcpSerSock = serverSocket(host, port)
-	tcpSerSock.send((HOST + ":" + string(PORT), my_key.publickey()))
+	tcpSerSock = Client((host, port))
+	tcpSerSock.send(["localhost:4001", public_key])
 	tcpSerSock.close()
 	return
 
 def main():
-
 	registerWithNodeServer("localhost", 1200)
 
-	writeKey()
 	ADDR = (HOST, PORT)
 
 	tcpProSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -62,31 +55,22 @@ def main():
 		kb = cake[1]	#backwards key
 		next = cake[2]	#next node or server
 		fw_cake = cake[3]	#cake to forward
+		tcpSerSock = serverSocket(next.split(":"))	#generate socket with next node or server's address
 
-		if(fw_cake == 0):	#exit node
-			tcpSerSock = serverSocket(next.split(":"))
-			while True:
-				data = tcpCliSock.recv(BUFSIZ)	#receive encrypted message
-				if not data:break
-				cipher = AES.new(kf, AES.MODE_CFB, data[0])
-				msg = cipher.decrypt(data[1])
-				tcpSerSock.send(msg)
-				ans = tcpSerSock.recv(BUFSIZ)
-				iv = Random.new().read(AES.block_size)
-				cipher = AES.new(kb, AES.MODE_ECB, iv)
-				tcpCliSock.send((iv, cipher.encrypt(ans)))
-		else:
-
-			while True:
-				data = tcpCliSock.recv(BUFSIZ)	#receive encrypted message
-				if not data:break
-				cipher = PKCS1_v1_5.new(my_key)
-				data = cipher.decrypt(data, "b")	#decrypt message with private key
-				data = exitNode("localhost", 21567, data)
-				cipher = PKCS1_v1_5.new(client_key)
-				data = cipher.encrypt(data)	#encrypt message with client's public key
-				tcpCliSock.send(data)
+		if(fw_cake != 0):	#exit node
+			tcpSerSock.send(fw_cake)
+		while True:
+                        data = tcpCliSock.recv(BUFSIZ)	#receive encrypted message
+                        if not data:break
+                        cipher = AES.new(kf, AES.MODE_CFB, data[0])
+                        msg = cipher.decrypt(data[1])   #decrypt message with AES forward key
+                        tcpSerSock.send(msg)
+                        ans = tcpSerSock.recv(BUFSIZ)   #receive answer
+                        iv = Random.new().read(AES.block_size)
+                        cipher = AES.new(kb, AES.MODE_ECB, iv)
+                        tcpCliSock.send((iv, cipher.encrypt(ans)))  #encrypt and send answer with AES backwards key
 		tcpCliSock.close
+		tcpSerSock.close
 	tcpProSock.close()
 	return
 
