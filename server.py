@@ -6,28 +6,17 @@ public_key = my_key.publickey().exportKey('PEM')
 
 HOST = ""
 PORT = 21567
-BUFSIZ = 2048
 ADDR = (HOST, PORT)
 
-tcpSerSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-tcpSerSock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-tcpSerSock.bind(ADDR)
-tcpSerSock.listen(1)
+tcpSerSock = Listener(ADDR) 
 
 while True:
-	print("waiting for a connection.....")
-	tcpCliSock, addr= tcpSerSock.accept()
-	print("....connected from:", addr)
-
-	client_key = RSA.importKey(tcpCliSock.recv(BUFSIZ))
-	tcpCliSock.send(public_key)
+	print("server waiting for a connection.....")
+	tcpCliSock= tcpSerSock.accept()
+	print("....server connected")
 	while True:
-		data = tcpCliSock.recv(BUFSIZ)	#receive encrypted message
+		data = tcpCliSock.recv().decode("utf-8")	#receive encrypted message
 		if not data:break
-		cipher = PKCS1_v1_5.new(my_key)
-		data = cipher.decrypt(data, "b")	#decrypt message with private key
-		cipher = PKCS1_v1_5.new(client_key)
-		data = cipher.encrypt(data)	#encrypt message with client's public key
-		tcpCliSock.send(data)
+		tcpCliSock.send(("I got this message: %s" %data).encode("utf-8"))
 	tcpCliSock.close
 tcpSerSock.close()

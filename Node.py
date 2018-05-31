@@ -30,19 +30,23 @@ def main():
 		kf = cake[0]	#forward key
 		kb = cake[1]	#backwards key
 		nxt = cake[2].decode("utf-8")	#next node or server
+		print("node %s confirming cake reception..." %PORT)
+		tcpCliSock.send(encMsg(b"got it", kb))
+		print("next address: %s" %nxt)
 		tcpSerSock = serverSocket(nxt.split(":")[0],int(nxt.split(":")[1]))	#generate socket with next node or server's address
 
 		while True:
 			data = tcpCliSock.recv()	#receive encrypted message
 			if not data:break
+			print("node %s received a message!" %PORT)
 			data = data.split(b"???")
 			cipher = AES.new(kf, AES.MODE_CFB, data[0])
 			msg = cipher.decrypt(data[1])   #decrypt message with AES forward key
+			print("my message: %s" %msg)
 			tcpSerSock.send(msg)
+			print("sent my message: %s" %msg)
 			ans = tcpSerSock.recv()   #receive answer
-			iv = Random.new().read(AES.block_size)
-			cipher = AES.new(kb, AES.MODE_ECB, iv)
-			tcpCliSock.send([iv, cipher.encrypt(ans)])  #encrypt and send answer with AES backwards key
+			tcpCliSock.send(encMsg(ans, kb))  #encrypt and send answer with AES backwards key
 		tcpCliSock.close()
 		tcpSerSock.close()
 	tcpProSock.close()

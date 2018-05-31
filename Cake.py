@@ -48,10 +48,8 @@ def symKeys(n):	#generate a random set of forward and backwards keys
 def encryptCake(cake, pub_key):
 	key = RSA.importKey(pub_key)
 	cipher = PKCS1_OAEP.new(key)
-	print("CAKE BEFORE: %s" %cake)
 	for i in range(len(cake)):
 		cake[i] = cipher.encrypt(cake[i])
-	print("CAKE AFTER: %s" %cake)
 	return cake 
 
 def decryptCake(cake, key):
@@ -59,7 +57,6 @@ def decryptCake(cake, key):
 	cipher = PKCS1_OAEP.new(key)
 	for i in range(len(cake)):
 	    cake[i] = cipher.decrypt(cake[i])
-	print("CAKE: %s" %cake)
 	return cake
 
 def bakeCakes(pub_keys, sym_keys, nodes, node_list, addr):
@@ -82,16 +79,23 @@ def symEncrypt(msg, sym_keys, n):	#encrypt message with forward keys
 		return msg
 	iv = Random.new().read(AES.block_size)
 	cipher = AES.new(sym_keys[n-1][0], AES.MODE_CFB, iv)
-	msg = (iv, cipher.encrypt(msg.encode("utf-8")))
+	msg = b"???".join([iv, cipher.encrypt(msg)])
 	return symEncrypt(msg, sym_keys, n-1)
 
 def symDecrypt(msg, sym_keys, n, i):	#decrypt message with backward keys
 	if(i==-1):
-		return msg[1]
+		return msg
+	msg = msg.split(b"???")
 	iv = msg[0]
-	cipher = AES.new(sym_keys[n-i-1][1], AES.MODE_CFB, iv)
+	cipher = AES.new(sym_keys[n-1][1], AES.MODE_CFB, iv)
 	msg = cipher.decrypt(msg[1])
 	return symDecrypt(msg, sym_keys, n, i-1)
+
+def encMsg(msg, key):
+	iv = Random.new().read(AES.block_size)
+	cipher = AES.new(key, AES.MODE_CFB, iv)
+	msg = b"???".join([iv, cipher.encrypt(msg)])
+	return msg
 
 def sendMessage(sock, cake, sym_keys):
 	sock.send(cake)
