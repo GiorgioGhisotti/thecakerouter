@@ -15,8 +15,9 @@ while True:
 	tcpCliSock= tcpSerSock.accept()
 	print("....server connected")
 	while True:
-		data = tcpCliSock.recv().decode("utf-8")	#receive encrypted message
-		if not data:break
+		data = tcpCliSock.recv()	#receive encrypted message
+		if not data or data == b"quit":break
+		data = data.decode("utf-8")
 		tcpCliSock.send(("I got this message: %s" %data).encode("utf-8"))
 	tcpCliSock.close
 tcpSerSock.close()

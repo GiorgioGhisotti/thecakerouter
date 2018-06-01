@@ -17,6 +17,7 @@ import hashlib
 NODEFILE = "nodes.txt"
 BUFSIZ = 4096
 RSA_MOD = 2048 
+DIVIDER = b"@@@"
 
 def Cake():
 	print("The cake is a lie!")
@@ -40,9 +41,11 @@ def nodeKeys(node_list):
 	return pub_keys
 
 def symKeys(n):	#generate a random set of forward and backwards keys
-	k = [[hashlib.sha256(os.urandom(16)).digest(),hashlib.sha256(os.urandom(16)).digest()]] * n
-	for key in k:
-	    key = [hashlib.sha256(os.urandom(16)).digest(),hashlib.sha256(os.urandom(16)).digest()]
+	k = [[] for i in range(n)]
+	for i in range(n):
+		k[i] = [hashlib.sha256(os.urandom(16)).digest(),
+		hashlib.sha256(os.urandom(16)).digest()]
+		print("Node "+str(i)+" key: "+str(k[i]))
 	return k
 
 def encryptCake(cake, pub_key):
@@ -53,7 +56,7 @@ def encryptCake(cake, pub_key):
 	return cake 
 
 def decryptCake(cake, key):
-	cake=list(cake.split(b"???"))
+	cake=list(cake.split(DIVIDER))
 	cipher = PKCS1_OAEP.new(key)
 	for i in range(len(cake)):
 	    cake[i] = cipher.decrypt(cake[i])
@@ -79,22 +82,22 @@ def symEncrypt(msg, sym_keys, n):	#encrypt message with forward keys
 		return msg
 	iv = Random.new().read(AES.block_size)
 	cipher = AES.new(sym_keys[n-1][0], AES.MODE_CFB, iv)
-	msg = b"???".join([iv, cipher.encrypt(msg)])
+	msg = DIVIDER.join([iv, cipher.encrypt(msg)])
 	return symEncrypt(msg, sym_keys, n-1)
 
 def symDecrypt(msg, sym_keys, n, i):	#decrypt message with backward keys
 	if(i==-1):
 		return msg
-	msg = msg.split(b"???")
+	msg = msg.split(DIVIDER)
 	iv = msg[0]
-	cipher = AES.new(sym_keys[n-1][1], AES.MODE_CFB, iv)
+	cipher = AES.new(sym_keys[n-i-1][1], AES.MODE_CFB, iv)
 	msg = cipher.decrypt(msg[1])
 	return symDecrypt(msg, sym_keys, n, i-1)
 
-def encMsg(msg, key):
-	iv = Random.new().read(AES.block_size)
+def encMsg(msg, key):	#encrypt a message with the given AES key and add the IV
+	iv = Random.new().read(16)
 	cipher = AES.new(key, AES.MODE_CFB, iv)
-	msg = b"???".join([iv, cipher.encrypt(msg)])
+	msg = DIVIDER.join([iv, cipher.encrypt(msg)])
 	return msg
 
 def sendMessage(sock, cake, sym_keys):

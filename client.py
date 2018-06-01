@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 from Cake import *
 import sys
+import time
+from termios import tcflush, TCIFLUSH
 
 PORT = "21567"
 NODE_COUNT = int(sys.argv[1])
@@ -12,7 +14,6 @@ def main():
 	public_key = my_key.publickey().exportKey('PEM')
 	
 	HOST = 'localhost'
-	BUFSIZ = 4096
 	ADDR = (HOST, PORT)
 	NODE = (node_list[0][0].split(":")[0], node_list[0][0].split(":")[1])
 
@@ -22,26 +23,36 @@ def main():
 	list(map(lambda a:a[0], node_list)), 
 	":".join(ADDR))
 
-	print("Cakes: %s" %len(list(cakes)))
-	
 	tcp_cli_sock = serverSocket(str(NODE[0]), int(NODE[1]))	#first node
 	for i in range(len(node_list)):
-		msg = b"???".join(cakes[i])
+		msg = DIVIDER.join(cakes[i])
 		for a in range(i):
-			msg = encMsg(msg, sym_keys[len(sym_keys)-1-a][0])
+			msg = encMsg(msg, sym_keys[i-1-a][0])
+			print("key #"+str(a)+": "+str(sym_keys[i-a][0]))
 
 		tcp_cli_sock.send(msg)
-		print("sent cake #%s!" %(i+1))
 		tcp_cli_sock.recv() #receive confirmation
 
 	while True:
+		tcflush(sys.stdin, TCIFLUSH)
 		data = input("> ")
-		if not data:break
+		while not data:
+			tcflush(sys.stdin, TCIFLUSH)
+			data = input("> ")
+		if data == "quit":
+			tcp_cli_sock.send(b"quit")
+			break
 		msg = symEncrypt(data.encode("utf-8"), sym_keys, len(sym_keys))
 		tcp_cli_sock.send(msg)
-		data = symDecrypt(tcp_cli_sock.recv(), sym_keys, len(sym_keys), len(sym_keys)-1)
-		if not data:break
-		print(data.decode("utf-8"))
+		data = tcp_cli_sock.recv()
+		if data: 
+			data = symDecrypt(data,
+			sym_keys,
+			len(sym_keys),
+			len(sym_keys)-1)
+			print(data.decode("utf-8"))
+		else:
+			print("Strange, I got a void answer...")
 	tcp_cli_sock.close()
 	return
 
