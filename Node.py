@@ -41,7 +41,9 @@ def main():
 			while not data:
 				data = tcpCliSock.recv()
 			data = data.split(DIVIDER)
-			if(len(data) != 2): print("message length error!")
+			if(len(data) != 2 or sys.getsizeof(data[0]) != 49):
+				tcpCliSock.send(encMsg(b"Error! Message was corrupted!", kb))
+				continue
 			cipher = AES.new(kf, AES.MODE_CFB, data[0])
 			msg = cipher.decrypt(data[1])   #decrypt message with AES forward key
 			tcpSerSock.send(msg)

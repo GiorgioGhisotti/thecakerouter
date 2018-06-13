@@ -11,6 +11,7 @@ import string
 import random
 import os
 import hashlib
+import sys
 
 RSA_MOD = 2048 
 DIVIDER = b"@@@"    #used to temporarily unite the elements of a list so they can be sent together
@@ -81,6 +82,7 @@ def symDecrypt(msg, sym_keys, n, i):
 		return msg
 	msg = msg.split(DIVIDER)
 	iv = msg[0]
+	if(sys.getsizeof(iv) != 49): return b"Error! Message got corrupted in transit"
 	cipher = AES.new(sym_keys[n-i-1][1], AES.MODE_CFB, iv)
 	msg = cipher.decrypt(msg[1])
 	return symDecrypt(msg, sym_keys, n, i-1)
@@ -88,6 +90,8 @@ def symDecrypt(msg, sym_keys, n, i):
 #encrypt a message with the given AES key and add the IV
 def encMsg(msg, key):
 	iv = Random.new().read(16)
+	while(sys.getsizeof(iv) != 49):
+		iv = Random.new().read(16)
 	cipher = AES.new(key, AES.MODE_CFB, iv)
 	msg = DIVIDER.join([iv, cipher.encrypt(msg)])
 	return msg
