@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!.env python
 from Cake import *
 import sys
 
@@ -9,8 +9,8 @@ PORT = int(sys.argv[1])
 HOST = "localhost"
 
 def registerWithNodeServer(host, port):
-	tcpSerSock = serverSocket(host, port)
-	tcpSerSock.send(["localhost:" + str(PORT), public_key])
+	tcpSerSock = serverSocket(str(host), int(port))
+	tcpSerSock.send([str(HOST) + ":" +  str(PORT), public_key])
 	tcpSerSock.close()
 	return
 
@@ -30,7 +30,6 @@ def main():
 		kf = cake[0]	#forward key
 		kb = cake[1]	#backwards key
 		nxt = cake[2].decode("utf-8")	#next node or server
-		print("forward key: %s" %kf)
 		tcpCliSock.send(encMsg(b"got it", kb))
 		tcpSerSock = serverSocket(nxt.split(":")[0],int(nxt.split(":")[1]))	#generate socket with next node or server's address
 

@@ -1,3 +1,4 @@
+#!.env python
 from Cake import *
 
 HOST = "localhost"
